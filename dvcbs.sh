@@ -5,7 +5,7 @@ set -e
 #resources folder
 refo=resources
 
-#boot sum will stay the same as there are no version checks on dev
+#boot.tar.gz will stay the same so i am leaving the sum here
 bootsum=7523e8cd9c3e97bc3200d9948b7ab36373c754130767d19faf57a748bb49a38e
 
 function help()
