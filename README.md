@@ -11,7 +11,7 @@ This takes an OTA, decrypts it, mounts it, copies some new files (update-engine,
 
 ## Usage
 
-Gunzip the tar.gz and put the "resources" folder next to the script. (`gunzip resources.tar.gz`)
+Gunzip the tar.gz and put the "resources" folder next to the script. Sudo may be needed. (`tar -xf resources.tar.gz`)
 
 Make a directory and put an OTA in it. Name it `latest.ota` then feed the directory to it to the script:
 
@@ -19,13 +19,21 @@ Make a directory and put an OTA in it. Name it `latest.ota` then feed the direct
 
 `-h` will bring up the help menu
 
-`-n {dir}` will do what the script is supposed to do
+`-n {dir}` will mount, update version files, update-engine, and ssh-key, unmount, and then build.
 
-`-o {dir}` is an experimetal feature that I was too lazy to add for now. Basically the same thing as -n but works for firmwares under 1.0.
+`-t {dir}` will only copy over new update-engine and ssh key then build. version files will stay the same. I use it for builds I want to beta test.
+
+`-m {dir}` will just mount the script for editing. no new files will be copied. build with `-b`.
+
+`-b {dir}` will just build an OTA you have mounted using `-m`, `-mn`, or `-mt`.
+
+`-mn` will mount, copy over version files, update-engine, and ssh-key. it will stay mounted for editing. build with `-b`.
+
+`-mt` will mount then copy over update-engine and ssh-key. it will stay mounted for editing. build with `-b`.
 
 ## Correct output
 
-If the OTA built successfully, you should be met with this:
+If the OTA built successfully, you should be met with something like this:
 
 Converting OTA in 1.5.0.2953/!
 
