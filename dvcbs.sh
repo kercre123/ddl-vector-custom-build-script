@@ -1,24 +1,26 @@
 #!/bin/bash
 
-set -e
-
 #resources folder
 refo=resources
 
-#boot.tar.gz will stay the same so i am leaving the sum here
-bootsum=7523e8cd9c3e97bc3200d9948b7ab36373c754130767d19faf57a748bb49a38e
+#scpip
+scpip=
+
+#scpkey
+scpkey=
+
+#otafolderatscp
+otafolder=
 
 function help()
 {
-   echo "This simple script will convert any OTA to one with a new update engine, SSH key, and build number. Experimental."
-   echo "[-h|-o {dir}|-n {dir}]"
    echo "-h         This message"
-   echo "-n {dir}   directory to any latest.ota over 1.0/under 1.6. will turn into a 1.8.0.4000d which will work with chipper-dev"
-   echo "-t {dir}   directory to any latest.ota you want to just beta test. it will only edit update engine/ssh key and won't mess with version number."
-   echo "-m {dir}   directory to any latest.ota you want to mount"
-   echo "-b {dir}   directory to an apq8009-robot-sysfs.img you want to build"
-   echo "-mn {dir} this will mount an OTA's sysfs and copy over update-engine, ssh key, and version stuff"
-   echo "-mt {dir} this will mount an OTA's sysfs and copy over update-engine and ssh key"
+   echo "-f {dir} {versionbase} {versioncode} {scp}  this mounts OTA, copys over versionbase, versioncode, new update-engine, and prod server config, then builds"
+   echo "-m {dir}   mount latest.ota"
+   echo "-b {dir} {versionbase} {versioncode} {scp}   build apq8009-robot-sysfs.img"
+   echo "-bf {dir} {versionbase} {versioncode} {scp}  copy over versionbase, versioncode, new update-engine, and prod server config then build"
+   echo "-t {dir}   mount, copy over prod server config, build. used for testing older firmware and new ones from ddl"
+   echo "-mb {dir} {versionbase} {versioncode}   only mounts then builds. used for testing super old firmware"
    exit 0
 }
 
@@ -29,42 +31,98 @@ function ctrl_c() {
     exit 1 
 }
 
-function copytest()
+function copyfull()
 {
   echo "Copying files over"
   sudo cp ${refo}/update-engine ${dir}edits/anki/bin/
-  sudo cp ${refo}/authorized_keys ${dir}edits/etc/ssh/
+  sudo cp ${refo}/server_config.json ${dir}edits/anki/data/assets/cozmo_resources/config/
+  sudo rm ${dir}edits/anki/etc/version
+  sudo rm ${dir}edits/etc/os-version
+  sudo rm ${dir}edits/etc/os-version-base
+  sudo rm ${dir}edits/etc/os-version-code
+  sudo rm ${dir}edits/build.prop
+  sudo cp ${refo}/build.prop ${dir}edits/
+  sudo sed -i -e 's/ro.anki.version=/ro.anki.version='${base}'.'${code}'d/g' ${dir}edits/build.prop
+  sudo sed -i -e 's/ro.anki.victor.version=/ro.anki.victor.version='${base}'.'${code}'/g' ${dir}edits/build.prop
+  sudo sed -i -e 's/ro.build.fingerprint=/ro.build.fingerprint='${base}'.'${code}'d/g' ${dir}edits/build.prop
+  sudo sed -i -e 's/ro.build.id=/ro.build.id='${base}'.'${code}'d/g' ${dir}edits/build.prop
+  sudo sed -i -e 's/ro.build.display.id=/ro.build.display.id=Wire_build'${code}'/g' ${dir}edits/build.prop
+  sudo sed -i -e 's/ro.build.version.incremental=/ro.build.version.incremental='${code}'/g' ${dir}edits/build.prop
+  sudo printf '%s\n' ${base}'.'${code} >${dir}edits/anki/etc/version
+  sudo printf '%s\n' ${base}'.'${code}'d' >${dir}edits/etc/os-version
+  sudo printf '%s\n' ${base} >${dir}edits/etc/os-version-base
+  sudo printf '%s\n' ${code} >${dir}edits/etc/os-version-code
 }
 
-function copynew()
+function copytest()
 {
-  sudo cp ${refo}/update-engine ${dir}edits/anki/bin/
-  sudo cp ${refo}/authorized_keys ${dir}edits/etc/ssh/
-  sudo cp ${refo}/os-version ${dir}edits/etc/
-  sudo cp ${refo}/os-version-base ${dir}edits/etc/
-  sudo cp ${refo}/os-version-code ${dir}edits/etc/
-  sudo cp ${refo}/version ${dir}edits/anki/etc/
-  sudo cp ${refo}/build.prop ${dir}edits/
+#some versions have a different server config, so i am doing sed
+  echo "Switching env from dev to prod"
+  sudo sed -i -e 's/xiepae8Ach2eequiphee4U/oDoa0quieSeir6goowai7f/g' ${dir}edits/anki/data/assets/cozmo_resources/config/server_config.json
+  sudo sed -i -e 's/chipper-dev.api.anki.com:443/chipper.api.anki.com:443/g' ${dir}edits/anki/data/assets/cozmo_resources/config/server_config.json
+  sudo sed -i -e 's/token-dev.api.anki.com:443/token.api.anki.com:443/g' ${dir}edits/anki/data/assets/cozmo_resources/config/server_config.json
+  sudo sed -i -e 's/jdocs-dev.api.anki.com:443/jdocs.api.anki.com:443/g' ${dir}edits/anki/data/assets/cozmo_resources/config/server_config.json
+#maybe TODO : some versions also have different das events in update-engine so ill also do sed here (itll take so lonnnngggnn a)
+ 
 }
 
 function mount()
 {
-  echo "Converting OTA in $dir!"
+  echo "Mounting OTA in $dir!"
   sudo mv ${dir}latest.ota ${dir}latest.tar
   sudo tar -xf ${dir}latest.tar --directory ${dir}
   sudo mkdir ${dir}edits
+  sudo mkdir ${dir}originalimg
+  echo "Decrypting"
   sudo openssl enc -d -aes-256-ctr -pass file:${refo}/ota.pas -md md5 -in ${dir}apq8009-robot-sysfs.img.gz -out ${dir}apq8009-robot-sysfs.img.dec.gz
   echo "Decompressing. This may take a minute."
   sudo gzip -d ${dir}apq8009-robot-sysfs.img.dec.gz
   echo "Rename img.dec to mountable img"
   sudo mv ${dir}apq8009-robot-sysfs.img.dec ${dir}apq8009-robot-sysfs.img
+  echo "Copying original sysfs img to temp for manifest stuff"
+  sudo cp ${dir}apq8009-robot-sysfs.img ${dir}originalimg/apq8009-robot-sysfs.img
   echo "Mounting IMG"
   sudo mount -o loop,rw,sync ${dir}apq8009-robot-sysfs.img ${dir}edits
   echo "Deleting GZ file for build function to work"
   sudo rm ${dir}apq8009-robot-sysfs.img.gz
 }
 
-function build()
+function buildtest()
+{
+  echo "Compressing. This may take a minute."
+  sudo gzip -k ${dir}apq8009-robot-sysfs.img
+  sudo mkdir ${dir}final
+  echo "Encrypting sysfs"
+  sudo openssl enc -e -aes-256-ctr -pass file:${refo}/ota.pas -md md5 -in ${dir}apq8009-robot-sysfs.img.gz -out ${dir}final/apq8009-robot-sysfs.img.dec.gz
+  sudo mv ${dir}final/apq8009-robot-sysfs.img.dec.gz ${dir}final/apq8009-robot-sysfs.img.gz
+  sudo mv ${dir}apq8009-robot-boot.img.gz ${dir}final/apq8009-robot-boot.img.gz
+  sudo mv ${dir}manifest.ini ${dir}final/manifest.ini
+  echo "Unmounting"
+  sudo umount ${dir}edits
+  echo "Finding SHA256 sum and putting it into manifest."
+  editedsysfssum=$(sha256sum ${dir}apq8009-robot-sysfs.img | head -c 64)
+  origsysfssum=$(sha256sum ${dir}originalimg/apq8009-robot-sysfs.img | head -c 64)
+  sudo sed -i -e 's/'${origsysfssum}'/'${editedsysfssum}'/g' ${dir}final/manifest.ini
+  echo "Putting into tar."
+  sudo tar -C ${dir}final -cvf ${dir}final/temp.tar manifest.ini
+  sudo tar -C ${dir}final -rf ${dir}final/temp.tar apq8009-robot-boot.img.gz
+  sudo tar -C ${dir}final -rf ${dir}final/temp.tar apq8009-robot-sysfs.img.gz
+  sudo mv ${dir}final/temp.tar ${dir}final/latest.ota
+  echo "Removing some temp files."
+  sudo rmdir ${dir}edits
+  sudo rm ${dir}apq8009-robot-sysfs.img.gz
+  sudo rm ${dir}final/apq8009-robot-sysfs.img.gz
+  sudo rm ${dir}final/apq8009-robot-boot.img.gz
+  sudo rm ${dir}originalimg/apq8009-robot-sysfs.img
+  sudo rmdir ${dir}originalimg
+  echo "Renaming original OTA back to OTA"
+  sudo mv ${dir}latest.tar ${dir}latest.ota
+  echo "Done! Output should be in ${dir}final/latest.ota!"
+  sudo rm ${dir}manifest.sha256
+}
+
+
+function buildcustom()
 {
   echo "Compressing. This may take a minute."
   sudo gzip -k ${dir}apq8009-robot-sysfs.img
@@ -74,25 +132,55 @@ function build()
   sudo umount ${dir}edits
   echo "Figuring out SHA256 sum and putting it into manifest."
   sysfssum=$(sha256sum ${dir}apq8009-robot-sysfs.img | head -c 64)
-  sudo printf '%s\n' '[META]' 'manifest_version=1.0.0' 'update_version=1.8.0.4000d' 'ankidev=1' 'num_images=2' '[BOOT]' 'encryption=1' 'delta=0' 'compression=gz' 'wbits=31' 'bytes=13795328' 'sha256='${bootsum} '[SYSTEM]' 'encryption=1' 'delta=0' 'compression=gz' 'wbits=31' 'bytes=608743424' 'sha256='${sysfssum} >${refo}/manifest.ini
+  sudo printf '%s\n' '[META]' 'manifest_version=1.0.0' 'update_version='${base}'.'${code}'d' 'ankidev=1' 'num_images=2' '[BOOT]' 'encryption=1' 'delta=0' 'compression=gz' 'wbits=31' 'bytes=13795328' 'sha256='${bootsum} '[SYSTEM]' 'encryption=1' 'delta=0' 'compression=gz' 'wbits=31' 'bytes=608743424' 'sha256='${sysfssum} >${refo}/manifest.ini
   echo "Putting into tar."
   sudo tar -C ${refo} -cvf ${refo}/temp.tar manifest.ini
   sudo tar -C ${refo} -rf ${refo}/temp.tar apq8009-robot-boot.img.gz
   sudo cp ${refo}/temp.tar ${dir}final/
   sudo tar -C ${dir}final -rf ${dir}final/temp.tar apq8009-robot-sysfs.img.gz
-  sudo mv ${dir}final/temp.tar ${dir}final/latest.ota
+  sudo mv ${dir}final/temp.tar ${dir}final/${base}.${code}.ota
   echo "Removing some temp files."
   sudo rmdir ${dir}edits
   sudo rm ${dir}apq8009-robot-sysfs.img.gz
   sudo rm ${dir}apq8009-robot-boot.img.gz
   sudo rm ${dir}manifest.ini
-  sudo rm ${dir}manifest.sha256
   sudo rm ${dir}final/apq8009-robot-sysfs.img.gz
   sudo rm ${refo}/manifest.ini
   sudo rm ${refo}/temp.tar
   echo "Renaming original OTA back to OTA"
-  sudo mv ${dir}latest.tar ${dir}latest.ota
+  sudo mv ${dir}latest.tar ${dir}${base}.${code}.ota
   echo "Done! Output should be in ${dir}final/latest.ota!"
+}
+
+function scptoserver()
+{
+  case $scpyn in
+       stable)
+   sudo scp -i ${scpkey} ${dir}final/${base}.${code}.ota root@${scpip}:/var/www/${otafolder}/stable/
+   sudo ssh -i ${scpkey} root@${scpip} "rm /var/www/${otafolder}/stable/latest.ota"
+   sudo ssh -i ${scpkey} root@${scpip} "ln -s /var/www/${otafolder}/stable/${base}.${code}.ota /var/www/${otafolder}/stable/latest.ota"
+   sudo ssh -i ${scpkey} root@${scpip} "rm /var/www/${otafolder}/stable/full/latest.ota"
+   sudo ssh -i ${scpkey} root@${scpip} "ln -s /var/www/html/stable/${base}.${code}.ota /var/www/${otafolder}/stable/full/latest.ota"
+   ;;
+       unstable)
+   sudo scp -i ${scpkey} ${dir}final/${base}.${code}.ota root@${scpip}:/var/www/${otafolder}/unstable/
+   sudo ssh -i ${scpkey} root@${scpip} "rm /var/www/${otafolder}/stable/latest.ota"
+   sudo ssh -i ${scpkey} root@${scpip} "ln -s /var/www/${otafolder}/unstable/${base}.${code}.ota /var/www/${otafolder}/unstable/latest.ota"
+   sudo ssh -i ${scpkey} root@${scpip} "rm /var/www/${otafolder}/unstable/full/latest.ota"
+   sudo ssh -i ${scpkey} root@${scpip} "ln -s /var/www/html/unstable/${base}.${code}.ota /var/www/${otafolder}/unstable/full/latest.ota"
+   ;;
+       sign)
+   sudo scp -i ${scpkey} ${dir}final/${base}.${code}.ota root@${scpip}:/var/www/${otafolder}/sts/
+   sudo ssh -i ${scpkey} root@${scpip} "rm /var/www/${otafolder}/sts/latest.ota"
+   sudo ssh -i ${scpkey} root@${scpip} "ln -s /var/www/html/sts/${base}.${code}.ota /var/www/${otafolder}/sts/latest.ota"
+   ;;
+       *)
+   echo "Invalid input..."
+   ;;
+       no)
+   echo "ok"
+   ;;
+   esac
 }
 
 if [ $# -gt 0 ]; then
@@ -100,17 +188,21 @@ if [ $# -gt 0 ]; then
 	-h)
 	    help
             ;;
-        -n)
+        -t)
             dir=$2
 	    mount
-            copynew
-            build
+            copytest
+	    buildtest
             ;;
-	-t) 
+	-f) 
 	    dir=$2
+	    base=$3
+	    code=$4
+	    scpyn=$5
 	    mount
-	    copytest
-            build
+	    copyfull
+            buildcustom
+	    scptoserver
 	    ;;
 	-m) 
 	    dir=$2
@@ -118,17 +210,34 @@ if [ $# -gt 0 ]; then
 	    ;;
 	-b) 
 	    dir=$2
-	    build
+	    buildcustom
 	    ;;
-	-mn) 
+	-bf) 
 	    dir=$2
-	    mount
-	    copynew
+	    base=$3
+	    code=$4
+	    scpyn=$5
+	    copyfull
+	    buildcustom
+	    scptoserver
 	    ;;
-	-mt) 
+	-mb) 
 	    dir=$2
+	    base=$3
+	    code=$4
+	    scpyn=sign
 	    mount
-            copytest
+            buildtest
+	    scptoserver
+	    ;;
+	-sts) 
+	    dir=$2
+	    base=$3
+	    code=$4
+	    scpyn=$5
+	    scptoserver
 	    ;;
     esac
+    else
+        echo "Read the GitHub page before using this script!"
 fi
