@@ -1,5 +1,5 @@
 ## ddl-vector-custom-build-script
-"Simple" all root bash script that turns a regular dev Vector OTA into an unsigned one with a new update engine, ssh key, and new version number so he can work with chipper.
+"Simple" all root bash script that turns a regular dev Vector OTA into an unsigned one. It can also copy over certain files for custom builds.
 
 ## **DISCLAIMER**
 
@@ -7,61 +7,33 @@ This can only work with Dev Vectors, and not with regular production Vectors.
 
 ## What *exactly* does it do?
 
-This takes an OTA, decrypts it, mounts it, copies some new files (update-engine, authorized_keys, os-version, os-version-code, os-version-base, version, and build.prop), unmounts it, encrypts it, finds the SHA256 sum of the img to put into the manifest, compiles it all into an OTA, then deletes some temporary files.
+This takes an OTA, decrypts it, mounts it, copies some new files (if specified), builds, and SCPs them to a server (if specified).
 
 ## Usage
 
-Gunzip the tar.gz and put the "resources" folder next to the script. Sudo may be needed. (`tar -xf resources.tar.gz`)
+Gunzip the tar.gz and put the "resources" folder next to the script. (`tar -xf resources.tar.gz`)
 
 Make a directory and put an OTA in it. Name it `latest.ota` then feed the directory to it to the script:
 
-`./dvcbs -n 1.5.0.2953/`
+To use SCP, you will need to put in your SSH root key at the top of the script where specified, the IP where specified, and the folder to put it at (at /var/www/<folder>).
 
-`-h` will bring up the help menu
+Testing older OTAs:
+`./dvcbs -t 1.5.0.2953/`
 
-`-n {dir}` will mount, update version files, update-engine, and ssh-key, unmount, and then build.
+Custom Builds:
+`./dvcbs -m 20/`
+`./dvcbs -bf 20/ 1.8.0 20 stable`
 
-`-t {dir}` will only copy over new update-engine and ssh key then build. version files will stay the same. I use it for builds I want to beta test.
+`-f {dir} {versionbase} {versioncode} {scp}`  this mounts OTA, copys over versionbase, versioncode, new update-engine, and prod server config, then builds
 
-`-m {dir}` will just mount the script for editing. no new files will be copied. build with `-b`.
+`-m {dir}`   mount latest.ota
 
-`-b {dir}` will just build an OTA you have mounted using `-m`, `-mn`, or `-mt`.
+`-b {dir} {versionbase} {versioncode} {scp}`   build apq8009-robot-sysfs.img
 
-`-mn` will mount, copy over version files, update-engine, and ssh-key. it will stay mounted for editing. build with `-b`.
+`-bf {dir} {versionbase} {versioncode} {scp}`  copy over versionbase, versioncode, new update-engine, and prod server config then build
 
-`-mt` will mount then copy over update-engine and ssh-key. it will stay mounted for editing. build with `-b`.
+`-t {dir}`   mount, copy over prod server config, build. used for testing older firmware and new ones from ddl
 
-## Correct output
-
-If the OTA built successfully, you should be met with something like this:
-
-Converting OTA in 1.5.0.2953/!
-
-*** WARNING : deprecated key derivation used.
-Using -iter or -pbkdf2 would be better.
-
-Decompressing. This may take a minute.
-
-Rename img.dec to mountable img
-
-Mounting IMG
-
-Copying files over
-
-Compressing. This may take a minute.
-
-*** WARNING : deprecated key derivation used.
-Using -iter or -pbkdf2 would be better.
-
-Figuring out SHA256 sum and putting it into manifest.
-
-Putting into tar.
-manifest.ini
-
-Removing some temp files.
-
-Renaming original OTA back to OTA
-
-Done! Output should be in 1.5.0.2953/final/latest.ota!
+`-mb {dir} {versionbase} {versioncode}`   only mounts then builds. used for testing super old firmware
 
 
