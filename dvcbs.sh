@@ -148,8 +148,8 @@ function buildcustom()
   sudo rm ${refo}/manifest.ini
   sudo rm ${refo}/temp.tar
   echo "Renaming original OTA back to OTA"
-  sudo mv ${dir}latest.tar ${dir}${base}.${code}.ota
-  echo "Done! Output should be in ${dir}final/latest.ota!"
+  sudo mv ${dir}latest.tar ${dir}latest.ota
+  echo "Done! Output should be in ${dir}final/${base}.${code}.ota!"
 }
 
 function scptoserver()
@@ -164,7 +164,7 @@ function scptoserver()
    ;;
        unstable)
    sudo scp -i ${scpkey} ${dir}final/${base}.${code}.ota root@${scpip}:/var/www/${otafolder}/unstable/
-   sudo ssh -i ${scpkey} root@${scpip} "rm /var/www/${otafolder}/stable/latest.ota"
+   sudo ssh -i ${scpkey} root@${scpip} "rm /var/www/${otafolder}/unstable/latest.ota"
    sudo ssh -i ${scpkey} root@${scpip} "ln -s /var/www/${otafolder}/unstable/${base}.${code}.ota /var/www/${otafolder}/unstable/latest.ota"
    sudo ssh -i ${scpkey} root@${scpip} "rm /var/www/${otafolder}/unstable/full/latest.ota"
    sudo ssh -i ${scpkey} root@${scpip} "ln -s /var/www/html/unstable/${base}.${code}.ota /var/www/${otafolder}/unstable/full/latest.ota"
