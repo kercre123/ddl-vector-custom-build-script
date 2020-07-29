@@ -41,17 +41,23 @@ function copyfull()
   sudo rm ${dir}edits/etc/os-version-base
   sudo rm ${dir}edits/etc/os-version-code
   sudo rm ${dir}edits/build.prop
+  sudo rm ${dir}edits/anki/etc/update-engine.env
   sudo cp ${refo}/build.prop ${dir}edits/
   sudo sed -i -e 's/ro.anki.version=/ro.anki.version='${base}'.'${code}'d/g' ${dir}edits/build.prop
   sudo sed -i -e 's/ro.anki.victor.version=/ro.anki.victor.version='${base}'.'${code}'/g' ${dir}edits/build.prop
   sudo sed -i -e 's/ro.build.fingerprint=/ro.build.fingerprint='${base}'.'${code}'d/g' ${dir}edits/build.prop
   sudo sed -i -e 's/ro.build.id=/ro.build.id='${base}'.'${code}'d/g' ${dir}edits/build.prop
-  sudo sed -i -e 's/ro.build.display.id=/ro.build.display.id=Wire_build'${code}'/g' ${dir}edits/build.prop
+  sudo sed -i -e 's/ro.build.display.id=/ro.build.display.id=Project Victor '${code}'/g' ${dir}edits/build.prop
   sudo sed -i -e 's/ro.build.version.incremental=/ro.build.version.incremental='${code}'/g' ${dir}edits/build.prop
   sudo printf '%s\n' ${base}'.'${code} >${dir}edits/anki/etc/version
   sudo printf '%s\n' ${base}'.'${code}'d' >${dir}edits/etc/os-version
   sudo printf '%s\n' ${base} >${dir}edits/etc/os-version-base
   sudo printf '%s\n' ${code} >${dir}edits/etc/os-version-code
+  sudo cp ${refo}/update-engine.env ${dir}edits/anki/etc/
+  sudo cp ${refo}/alexa.json ${dir}edits/anki/data/assets/cozmo_resources/config/
+  sudo chmod --reference=${dir}edits/anki/etc/revision ${dir}edits/anki/etc/update-engine.env
+  sudo chmod --reference=${dir}edits/anki/etc/revision ${dir}edits/anki/etc/version
+  sudo chmod --reference=${dir}edits/anki/etc/revision ${dir}edits/anki/data/assets/cozmo_resources/config/alexa.json
 }
 
 function copytest()
@@ -132,7 +138,7 @@ function buildcustom()
   sudo umount ${dir}edits
   echo "Figuring out SHA256 sum and putting it into manifest."
   sysfssum=$(sha256sum ${dir}apq8009-robot-sysfs.img | head -c 64)
-  sudo printf '%s\n' '[META]' 'manifest_version=1.0.0' 'update_version='${base}'.'${code}'d' 'ankidev=1' 'num_images=2' '[BOOT]' 'encryption=1' 'delta=0' 'compression=gz' 'wbits=31' 'bytes=13795328' 'sha256='${bootsum} '[SYSTEM]' 'encryption=1' 'delta=0' 'compression=gz' 'wbits=31' 'bytes=608743424' 'sha256='${sysfssum} >${refo}/manifest.ini
+  sudo printf '%s\n' '[META]' 'manifest_version=1.0.0' 'update_version='${base}'.'${code}'d' 'ankidev=1' 'num_images=2' '[BOOT]' 'encryption=1' 'delta=0' 'compression=gz' 'wbits=31' 'bytes=14372864' 'sha256=a3baaa5bbcb5d5698495eb157c14412fbc56cd07781f6f2ebc3cb698a1dfb2f8' '[SYSTEM]' 'encryption=1' 'delta=0' 'compression=gz' 'wbits=31' 'bytes=608743424' 'sha256='${sysfssum} >${refo}/manifest.ini
   echo "Putting into tar."
   sudo tar -C ${refo} -cvf ${refo}/temp.tar manifest.ini
   sudo tar -C ${refo} -rf ${refo}/temp.tar apq8009-robot-boot.img.gz
@@ -183,6 +189,9 @@ function scptoserver()
    esac
 }
 
+
+  
+
 if [ $# -gt 0 ]; then
     case "$1" in
 	-h)
@@ -198,11 +207,9 @@ if [ $# -gt 0 ]; then
 	    dir=$2
 	    base=$3
 	    code=$4
-	    scpyn=$5
 	    mount
 	    copyfull
-            buildcustom
-	    scptoserver
+	    buildcustom
 	    ;;
 	-m) 
 	    dir=$2
@@ -216,10 +223,8 @@ if [ $# -gt 0 ]; then
 	    dir=$2
 	    base=$3
 	    code=$4
-	    scpyn=$5
 	    copyfull
 	    buildcustom
-	    scptoserver
 	    ;;
 	-mb) 
 	    dir=$2
